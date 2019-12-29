@@ -5,6 +5,11 @@
 #include "util_bit.h"
 #include "util_math.h"
 
+// Include the arm intrinsics if compiling for aarch64
+#ifdef __aarch64__
+#include <arm_neon.h>
+#endif
+
 namespace dxvk {
 
   template <typename T>
@@ -151,10 +156,23 @@ namespace dxvk {
 
   inline Vector4 replaceNaN(Vector4 a) {
     Vector4 result;
+    #if defined(__i386__) || defined(__x86_64__)
     __m128 value = _mm_load_ps(a.data);
     __m128 mask  = _mm_cmpeq_ps(value, value);
            value = _mm_and_ps(value, mask);
     _mm_store_ps(result.data, value);
+    #elif defined(__aarch64__)
+    float32x4_t value = vld1q_f32(a.data);
+    uint32x4_t  mask  = vceqq_f32(value, value);
+                mask  = vandq_u32(vreinterpretq_u32_f32(value), mask);
+    vst1q_f32(result.data, vreinterpretq_f32_u32(mask));
+    #else
+    // If using another architecture, replace NaNs the slow way
+    // NOTE: It would be ideal for any new architectures to use an SIMD
+    // NOTE: instruction block, like as above, for performance
+    for (uint32_t i = 0; i < 4; i++)
+      result.data[i] = std::isnan(a.data[i]) ? 0.0f : a.data[i];
+    #endif
     return result;
   }
 

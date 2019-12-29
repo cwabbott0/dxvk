@@ -4662,6 +4662,19 @@ namespace dxvk {
 
     // Set new control word.
     __asm__ __volatile__("fldcw %0" : : "m" (*&control));
+#elif (defined(__GNUC__) || defined(__MINGW32__)) && defined(__aarch64)
+    uint32_t control;
+
+    // Get current control word.
+    __asm__ __volatile__("mrs %0, fpcr" : "=m" (*&control));
+
+    // Clear existing settings, then:
+    // Disable exceptions
+    // Round to nearest
+    control &= 0xff3f60ff;
+
+    // Set new control word.
+    __asm__ __volatile__("msr fpcr, %0" : : "m" (*&control));
 #else
     Logger::warn("D3D9DeviceEx::SetupFPU: not supported on this arch.");
 #endif
